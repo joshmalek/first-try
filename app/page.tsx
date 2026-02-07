@@ -16,37 +16,51 @@ export default function KanyeOS() {
 
   const handleCommand = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cmd = input.trim();
-    if (!cmd) return;
-
-    setHistory(prev => [...prev, `➜ ${cmd}`]);
+    const prompt = input.trim(); // No more 'ask ' check
+    if (!prompt) return;
+  
+    setHistory(prev => [...prev, `➜ ${prompt}`]);
     setInput('');
-
-    // Handle "ask" command
-    // Inside handleCommand in page.tsx
-    if (cmd.toLowerCase().startsWith('ask ')) {
-      const prompt = cmd.substring(4);
-      setIsThinking(true);
-
-      try {
-        const response = await fetch('/api/chat', { // Calls your Vercel server instead of ngrok
-          method: 'POST',
-          body: JSON.stringify({ prompt }),
-        });
-
-        const data = await response.json();
-        if (data.error) throw new Error(data.error);
-
-        setHistory(prev => [...prev, `[5070_TI_OUTPUT]:`, data.response]);
-      } catch (err) {
-        setHistory(prev => [...prev, "!! ERROR: SYSTEM OFFLINE !!"]);
-      } finally {
-        setIsThinking(false);
-      }
-    } else if (cmd.toLowerCase() === 'clear') {
+    
+    // Special case for 'clear' if you still want it
+    if (prompt.toLowerCase() === 'clear') {
       setHistory(['SYSTEM REBOOTED...']);
-    } else {
-      setHistory(prev => [...prev, `COMMAND NOT RECOGNIZED: ${cmd}`]);
+      return;
+    }
+  
+    setIsThinking(true);
+    setHistory(prev => [...prev, `[5070_TI_OUTPUT]:`, ""]); 
+  
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        body: JSON.stringify({ prompt }), // Just send the raw input
+      });
+  
+      if (!response.body) throw new Error("No response body");
+  
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedText = "";
+  
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+  
+        const chunk = decoder.decode(value, { stream: true });
+        accumulatedText += chunk;
+  
+        setHistory(prev => {
+          const newHistory = [...prev];
+          newHistory[newHistory.length - 1] = accumulatedText;
+          return newHistory;
+        });
+        
+        setIsThinking(false); 
+      }
+    } catch (err) {
+      setHistory(prev => [...prev, "!! ERROR: STREAM INTERRUPTED !!"]);
+      setIsThinking(false);
     }
   };
 
