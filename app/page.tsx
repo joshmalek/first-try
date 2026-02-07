@@ -10,6 +10,7 @@ export default function KanyeOS() {
   const [totalTokens, setTotalTokens] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Poll for real GPU stats from your Python sidekick every 5 seconds
   useEffect(() => {
     const getStats = async () => {
       try {
@@ -22,6 +23,7 @@ export default function KanyeOS() {
     return () => clearInterval(interval);
   }, []);
 
+  // Auto-scroll logic
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [history]);
@@ -30,6 +32,7 @@ export default function KanyeOS() {
     e.preventDefault();
     const prompt = input.trim();
     if (!prompt) return;
+    
     if (prompt.toLowerCase() === 'clear') { 
       setHistory(['REBOOTED...']); 
       return setInput('');
@@ -47,27 +50,47 @@ export default function KanyeOS() {
 
       while (reader) {
         const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
         
+        // Decode current chunk
+        const chunk = decoder.decode(value, { stream: true });
+
+        // Check for the hidden stats tag sent at the end of the Ollama stream
         if (chunk.includes("__STATS__")) {
-          const statsMatch = chunk.match(/__STATS__(.*)__/);
+          const [textBeforeTag, tagPart] = chunk.split("__STATS__");
+          
+          // Append any final words that arrived before the tag to prevent cutting off
+          fullText += textBeforeTag; 
+
+          const statsMatch = tagPart.match(/({.*?})/);
           if (statsMatch) {
             const stats = JSON.parse(statsMatch[1]);
-            const currentSavings = (stats.tokens / 1000000 * 15.00);
-            setSessionSavings(prev => prev + currentSavings);
+            
+            // Financial Logic: Cloud ($15/1M) vs Local (Electricity Cost)
+            const cloudPrice = (stats.tokens / 1000000 * 15.00);
+            const electricityTax = 0.0005; // Est. cost of 5070 Ti power draw per request
+            
+            setSessionSavings(prev => prev + (cloudPrice - electricityTax));
             setTotalTokens(prev => prev + stats.tokens);
-            setHistory(prev => [...prev.slice(0, -1), fullText, "-------------------"]);
+            
+            setHistory(prev => {
+              const newHistory = [...prev];
+              newHistory[newHistory.length - 1] = fullText;
+              newHistory.push("-------------------");
+              return newHistory;
+            });
           }
-        } else {
-          fullText += chunk;
-          setHistory(prev => {
-            const newHistory = [...prev];
-            newHistory[newHistory.length - 1] = fullText;
-            return newHistory;
-          });
+          break; // Exit stream
         }
+
+        // Standard text streaming update
+        fullText += chunk;
+        setHistory(prev => {
+          const newHistory = [...prev];
+          newHistory[newHistory.length - 1] = fullText;
+          return newHistory;
+        });
+
+        if (done) break;
         setIsThinking(false);
       }
     } catch (err) {
@@ -97,11 +120,12 @@ export default function KanyeOS() {
           <input 
             autoFocus className="bg-transparent outline-none w-full text-green-400"
             value={input} onChange={(e) => setInput(e.target.value)}
+            placeholder="Type your message..."
           />
         </form>
       </div>
 
-      {/* Session Savings Dashboard */}
+      {/* Financial Dashboard */}
       <div className="w-full max-w-3xl mt-4 grid grid-cols-3 gap-4 text-[10px] uppercase tracking-widest">
         <div className="border border-green-900/30 p-3 bg-green-900/5 rounded">
           <div className="text-green-800 mb-1">Session Tokens</div>
@@ -109,7 +133,9 @@ export default function KanyeOS() {
         </div>
         <div className="border border-green-900/30 p-3 bg-green-900/5 rounded">
           <div className="text-green-800 mb-1">Cloud Equivalent</div>
-          <div className="text-lg font-bold text-green-400">${(totalTokens / 1000000 * 15.00).toFixed(4)}</div>
+          <div className="text-lg font-bold text-green-400">
+            ${(totalTokens / 1000000 * 15.00).toFixed(4)}
+          </div>
         </div>
         <div className="border border-green-500/20 p-3 bg-green-500/10 rounded shadow-[0_0_10px_rgba(34,197,94,0.05)]">
           <div className="text-green-400 mb-1 font-bold italic underline">Total Net Savings</div>
