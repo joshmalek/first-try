@@ -19,10 +19,12 @@ export async function POST(req: Request) {
         messages: messages, // History array: [{role: 'system', ...}, {role: 'user', ...}]
         stream: true,
         options: {
-          num_predict: -1, 
-          num_ctx: 8192,   
-          temperature: 0.9 
-        }
+            num_predict: -1, 
+            num_ctx: 8192,   
+            temperature: 1.2, // Higher = less predictable/more "human" 
+            top_p: 0.95,      // Helps keep it from being total gibberish
+            presence_penalty: 1.5 // Discourages it from using those "AI-isms"
+          }
       }),
     });
 
