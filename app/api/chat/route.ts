@@ -7,15 +7,8 @@ export async function POST(req: Request) {
 
     const response = await fetch(`${NGROK_URL}/api/generate`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': 'true',
-      },
-      body: JSON.stringify({
-        model: 'deepseek-coder-v2:lite',
-        prompt: prompt,
-        stream: true,
-      }),
+      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+      body: JSON.stringify({ model: 'deepseek-coder-v2:lite', prompt, stream: true }),
     });
 
     const stream = new ReadableStream({
@@ -27,23 +20,16 @@ export async function POST(req: Request) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-
           const chunk = decoder.decode(value, { stream: true });
           const lines = chunk.split('\n');
           for (const line of lines) {
             if (!line.trim()) continue;
             try {
               const json = JSON.parse(line);
-              if (json.response) {
-                controller.enqueue(new TextEncoder().encode(json.response));
-              }
-              // Capture the final stats and send them as a hidden tag
+              if (json.response) controller.enqueue(new TextEncoder().encode(json.response));
               if (json.done) {
-                const statsTag = `__STATS__${JSON.stringify({
-                  tokens: json.eval_count,
-                  speed: (json.eval_count / (json.eval_duration / 1e9)).toFixed(2)
-                })}__`;
-                controller.enqueue(new TextEncoder().encode(statsTag));
+                const tag = `__STATS__${JSON.stringify({ tokens: json.eval_count })}__`;
+                controller.enqueue(new TextEncoder().encode(tag));
               }
             } catch (e) {}
           }
@@ -54,6 +40,6 @@ export async function POST(req: Request) {
 
     return new Response(stream);
   } catch (error) {
-    return NextResponse.json({ error: 'Connection Failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Bridge Offline' }, { status: 500 });
   }
 }
