@@ -8,22 +8,38 @@ export default function KanyeOS() {
   const [gpuStats, setGpuStats] = useState({ temp: 0, vram: 0 });
   const [sessionSavings, setSessionSavings] = useState(0);
   const [totalTokens, setTotalTokens] = useState(0);
+  
+  // NEW: Model Switcher States
+  const [models, setModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState("deepseek-coder-v2:lite");
+  
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Poll for real GPU stats from your Python sidekick every 5 seconds
+  // Fetch available models from your PC
+  const fetchModels = async () => {
+    try {
+      const res = await fetch('/api/models'); 
+      const data = await res.json();
+      if (data.models) {
+        setModels(data.models.map((m: any) => m.name));
+      }
+    } catch (e) {
+      console.error("Models offline");
+    }
+  };
+
   useEffect(() => {
-    const getStats = async () => {
+    fetchModels();
+    const statsInterval = setInterval(async () => {
       try {
         const res = await fetch('/api/stats');
         const data = await res.json();
         setGpuStats(data);
       } catch (e) {}
-    };
-    const interval = setInterval(getStats, 5000);
-    return () => clearInterval(interval);
+    }, 5000);
+    return () => clearInterval(statsInterval);
   }, []);
 
-  // Auto-scroll logic
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [history]);
@@ -34,41 +50,41 @@ export default function KanyeOS() {
     if (!prompt) return;
     
     if (prompt.toLowerCase() === 'clear') { 
-      setHistory(['REBOOTED...']); 
+      setHistory(['REBOOTED...', 'REFRESHING_MODELS...']); 
+      fetchModels();
       return setInput('');
     }
 
-    setHistory(prev => [...prev, `➜ ${prompt}`, `[5070_TI_OUTPUT]:`, ""]);
+    // Include the model name in the terminal history for that "pro" look
+    setHistory(prev => [...prev, `➜ [${selectedModel}]: ${prompt}`, `[5070_TI_OUTPUT]:`, ""]);
     setInput('');
     setIsThinking(true);
 
     try {
-      const response = await fetch('/api/chat', { method: 'POST', body: JSON.stringify({ prompt }) });
+      const response = await fetch('/api/chat', { 
+        method: 'POST', 
+        body: JSON.stringify({ 
+          prompt, 
+          model: selectedModel // <--- Pass the selected model to the backend
+        }) 
+      });
+      
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
 
       while (reader) {
         const { done, value } = await reader.read();
-        
-        // Decode current chunk
         const chunk = decoder.decode(value, { stream: true });
 
-        // Check for the hidden stats tag sent at the end of the Ollama stream
         if (chunk.includes("__STATS__")) {
           const [textBeforeTag, tagPart] = chunk.split("__STATS__");
-          
-          // Append any final words that arrived before the tag to prevent cutting off
           fullText += textBeforeTag; 
-
           const statsMatch = tagPart.match(/({.*?})/);
           if (statsMatch) {
             const stats = JSON.parse(statsMatch[1]);
-            
-            // Financial Logic: Cloud ($15/1M) vs Local (Electricity Cost)
             const cloudPrice = (stats.tokens / 1000000 * 15.00);
-            const electricityTax = 0.0005; // Est. cost of 5070 Ti power draw per request
-            
+            const electricityTax = 0.0005; 
             setSessionSavings(prev => prev + (cloudPrice - electricityTax));
             setTotalTokens(prev => prev + stats.tokens);
             
@@ -79,10 +95,9 @@ export default function KanyeOS() {
               return newHistory;
             });
           }
-          break; // Exit stream
+          break;
         }
 
-        // Standard text streaming update
         fullText += chunk;
         setHistory(prev => {
           const newHistory = [...prev];
@@ -91,36 +106,50 @@ export default function KanyeOS() {
         });
 
         if (done) break;
-        setIsThinking(false);
       }
     } catch (err) {
       setHistory(prev => [...prev, "!! ERROR: GPU DISCONNECTED !!"]);
+    } finally {
       setIsThinking(false);
     }
   };
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-black font-mono text-green-500 p-4">
-      {/* Main Terminal Box */}
       <div className="w-full max-w-3xl border-2 border-green-900 rounded-lg bg-black overflow-hidden shadow-[0_0_30px_rgba(0,255,0,0.1)]">
-        <div className="bg-green-900/20 px-4 py-2 border-b border-green-900 text-[10px] flex justify-between uppercase tracking-widest">
-          <span>AUHSOJ_OS // CORE_2026</span>
+        
+        {/* Header with Model Switcher */}
+        <div className="bg-green-900/20 px-4 py-2 border-b border-green-900 text-[10px] flex justify-between items-center uppercase tracking-widest">
+          <div className="flex items-center gap-2">
+            <span className="text-green-800">MODEL:</span>
+            <select 
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="bg-transparent text-green-400 outline-none border-none cursor-pointer hover:text-white transition-colors"
+            >
+              {models.length > 0 ? (
+                models.map(m => <option key={m} value={m} className="bg-black">{m}</option>)
+              ) : (
+                <option>LOADING...</option>
+              )}
+            </select>
+          </div>
           <span className={gpuStats.temp > 75 ? "text-red-500 animate-pulse" : "text-green-400"}>
             TEMP: {gpuStats.temp}°C | VRAM: {gpuStats.vram}GB / 16GB
           </span>
         </div>
 
-        <div ref={scrollRef} className="h-[450px] overflow-y-auto p-6 space-y-3 text-sm scrollbar-hide">
+        <div ref={scrollRef} className="h-[450px] overflow-y-auto p-6 space-y-3 text-sm scrollbar-hide text-green-400/90">
           {history.map((line, i) => <div key={i} className="whitespace-pre-wrap">{line}</div>)}
-          {isThinking && <div className="animate-pulse">CRUNCHING_DATA...</div>}
+          {isThinking && <div className="animate-pulse">{" >> PROCESSING_ON_5070TI..."}</div>}
         </div>
 
         <form onSubmit={handleCommand} className="p-4 border-t border-green-900 flex">
           <span className="mr-3 text-green-400 font-bold">➜</span>
           <input 
-            autoFocus className="bg-transparent outline-none w-full text-green-400"
+            autoFocus className="bg-transparent outline-none w-full text-green-400 placeholder:text-green-900"
             value={input} onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
+            placeholder="AWAITING COMMAND..."
           />
         </form>
       </div>
