@@ -4,7 +4,7 @@ from pynvml import *
 
 # CONFIGURATION
 # Replace with your actual Vercel URL
-VERCEL_STATS_URL = "https://inexplicit-yvonne-trophically.ngrok-free.dev/api/stats"
+VERCEL_STATS_URL = "https://first-try-ecru.vercel.app/api/stats"
 UPDATE_INTERVAL = 5  # Seconds between updates
 
 def get_gpu_stats():
