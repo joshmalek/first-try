@@ -6,10 +6,19 @@ export async function POST(req: Request) {
     const NGROK_URL = 'https://inexplicit-yvonne-trophically.ngrok-free.dev';
 
     const response = await fetch(`${NGROK_URL}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-      body: JSON.stringify({ model: 'deepseek-coder-v2:lite', prompt, stream: true }),
-    });
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+        body: JSON.stringify({ 
+          model: 'deepseek-coder-v2:lite', 
+          prompt, 
+          stream: true,
+          options: {
+            num_predict: 4096, // Increases max length of the answer (default is often 128!)
+            num_ctx: 8192,    // Gives the model a larger "short-term memory"
+            temperature: 0.8  // Higher temp prevents it from getting stuck in loops
+          }
+        }),
+      });
 
     const stream = new ReadableStream({
       async start(controller) {
