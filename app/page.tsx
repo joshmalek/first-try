@@ -23,33 +23,23 @@ export default function KanyeOS() {
     setInput('');
 
     // Handle "ask" command
+    // Inside handleCommand in page.tsx
     if (cmd.toLowerCase().startsWith('ask ')) {
       const prompt = cmd.substring(4);
       setIsThinking(true);
 
       try {
-        const response = await fetch('https://inexplicit-yvonne-trophically.ngrok-free.dev/api/generate', {
+        const response = await fetch('/api/chat', { // Calls your Vercel server instead of ngrok
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'ngrok-skip-browser-warning': 'true', // Bypasses ngrok warning page
-          },
-          body: JSON.stringify({
-            model: 'deepseek-coder-v2:lite',
-            prompt: prompt,
-            stream: false, // Set to false for a simpler single-string response
-          }),
+          body: JSON.stringify({ prompt }),
         });
 
-        if (!response.ok) throw new Error(`Server Error: ${response.status}`);
-
         const data = await response.json();
-        console.log("GPU Response:", data); // Check your browser console (F12) to see this
-        
+        if (data.error) throw new Error(data.error);
+
         setHistory(prev => [...prev, `[5070_TI_OUTPUT]:`, data.response]);
       } catch (err) {
-        console.error("Fetch Error:", err);
-        setHistory(prev => [...prev, "!! ERROR: SYSTEM OFFLINE OR TUNNEL TIMEOUT !!"]);
+        setHistory(prev => [...prev, "!! ERROR: SYSTEM OFFLINE !!"]);
       } finally {
         setIsThinking(false);
       }
