@@ -4,20 +4,18 @@ import React, { useState, useEffect, useRef } from 'react';
 export default function KanyeOS() {
   const [input, setInput] = useState('');
   const [history, setHistory] = useState(['SYSTEM ONLINE...', 'GPU: RTX 5070 Ti 16GB DETECTED']);
-  
-  // NEW: This stores the raw context for the AI, reset on refresh
-  const [chatMessages, setChatMessages] = useState<{role: string, content: string}[]>([]);
-  
   const [isThinking, setIsThinking] = useState(false);
   const [gpuStats, setGpuStats] = useState({ temp: 0, vram: 0 });
   const [sessionSavings, setSessionSavings] = useState(0);
   const [totalTokens, setTotalTokens] = useState(0);
   
+  // NEW: Model Switcher States
   const [models, setModels] = useState<string[]>([]);
   const [selectedModel, setSelectedModel] = useState("deepseek-coder-v2:lite");
   
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Fetch available models from your PC
   const fetchModels = async () => {
     try {
       const res = await fetch('/api/models'); 
@@ -52,15 +50,12 @@ export default function KanyeOS() {
     if (!prompt) return;
     
     if (prompt.toLowerCase() === 'clear') { 
-      setHistory(['REBOOTED...', 'REFRESHING_MODELS...', 'CONTEXT_CLEARED']); 
-      setChatMessages([]); // Wipes the AI's memory
+      setHistory(['REBOOTED...', 'REFRESHING_MODELS...']); 
       fetchModels();
       return setInput('');
     }
 
-    // 1. Prepare the updated context array
-    const updatedMessages = [...chatMessages, { role: 'user', content: prompt }];
-    
+    // Include the model name in the terminal history for that "pro" look
     setHistory(prev => [...prev, `➜ [${selectedModel}]: ${prompt}`, `[5070_TI_OUTPUT]:`, ""]);
     setInput('');
     setIsThinking(true);
@@ -69,8 +64,8 @@ export default function KanyeOS() {
       const response = await fetch('/api/chat', { 
         method: 'POST', 
         body: JSON.stringify({ 
-          messages: updatedMessages, // Passing the full conversation array
-          model: selectedModel 
+          prompt, 
+          model: selectedModel // <--- Pass the selected model to the backend
         }) 
       });
       
@@ -85,10 +80,6 @@ export default function KanyeOS() {
         if (chunk.includes("__STATS__")) {
           const [textBeforeTag, tagPart] = chunk.split("__STATS__");
           fullText += textBeforeTag; 
-          
-          // 2. Save the assistant's response to the context for the next turn
-          setChatMessages([...updatedMessages, { role: 'assistant', content: fullText }]);
-
           const statsMatch = tagPart.match(/({.*?})/);
           if (statsMatch) {
             const stats = JSON.parse(statsMatch[1]);
@@ -127,6 +118,7 @@ export default function KanyeOS() {
     <main className="flex min-h-screen flex-col items-center justify-center bg-black font-mono text-green-500 p-4">
       <div className="w-full max-w-3xl border-2 border-green-900 rounded-lg bg-black overflow-hidden shadow-[0_0_30px_rgba(0,255,0,0.1)]">
         
+        {/* Header with Model Switcher */}
         <div className="bg-green-900/20 px-4 py-2 border-b border-green-900 text-[10px] flex justify-between items-center uppercase tracking-widest">
           <div className="flex items-center gap-2">
             <span className="text-green-800">MODEL:</span>
@@ -162,6 +154,7 @@ export default function KanyeOS() {
         </form>
       </div>
 
+      {/* Financial Dashboard */}
       <div className="w-full max-w-3xl mt-4 grid grid-cols-3 gap-4 text-[10px] uppercase tracking-widest">
         <div className="border border-green-900/30 p-3 bg-green-900/5 rounded">
           <div className="text-green-800 mb-1">Session Tokens</div>
